@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Veo3 Bulk Video</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-title">
+      <span class="header-icon">🎬</span>
+      <h1>Veo3 Bulk</h1>
+    </div>
+    <div class="connection-badge" id="connectionBadge" title="Connection status">
+      <span class="badge-dot"></span>
+      <span class="badge-text">Disconnected</span>
+    </div>
+  </header>
+
+  <!-- Tab Navigation -->
+  <nav class="tabs">
+    <button class="tab active" data-tab="prompts">
+      <span class="tab-icon">📝</span>
+      <span>Prompts</span>
+      <span class="tab-badge" id="promptCountBadge" style="display:none">0</span>
+    </button>
+    <button class="tab" data-tab="config">
+      <span class="tab-icon">⚙️</span>
+      <span>Config</span>
+    </button>
+    <button class="tab" data-tab="progress">
+      <span class="tab-icon">▶️</span>
+      <span>Progress</span>
+    </button>
+    <button class="tab" data-tab="history">
+      <span class="tab-icon">📋</span>
+      <span>History</span>
+    </button>
+  </nav>
+
+  <!-- Tab Content -->
+  <main class="content">
+
+    <!-- Prompts Tab -->
+    <section class="tab-content active" id="tab-prompts">
+      <div class="section-card">
+        <h3>Cấu trúc chung</h3>
+        <p class="hint">Nội dung này sẽ luôn được thêm vào đầu mỗi prompt đơn.</p>
+        <textarea id="commonPromptInput" class="input-field" rows="3" placeholder="Nhập cấu trúc chung (VD: Cinematic shot, 4k, photorealistic...)"></textarea>
+      </div>
+
+      <div class="section-card">
+        <div class="section-header">
+          <h3>Danh sách prompts đơn</h3>
+          <span class="count-badge" id="promptListCount">0</span>
+        </div>
+        <div id="promptInputList" class="prompt-input-list">
+          <!-- Textareas will be rendered by JS -->
+        </div>
+        <div class="button-row" style="margin-top: 12px">
+          <button class="btn btn-primary" id="addMorePromptsBtn">
+            <span>➕</span> Thêm ô prompt
+          </button>
+          <button class="btn btn-ghost" id="clearPromptsBtn">🗑️ Xóa tất cả</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Config Tab -->
+    <section class="tab-content" id="tab-config">
+      <div class="section-card">
+        <h3>First Frame</h3>
+        <p class="hint">Image dùng làm frame đầu tiên cho video đầu tiên trong chuỗi.</p>
+        <div class="upload-zone" id="uploadZone">
+          <input type="file" id="firstFrameInput" accept="image/*" hidden>
+          <div id="uploadPlaceholder" class="upload-placeholder">
+            <span class="upload-icon">🖼️</span>
+            <p>Click hoặc kéo thả image</p>
+          </div>
+          <div id="uploadPreview" class="upload-preview" style="display:none">
+            <img id="previewImage" src="" alt="Preview">
+            <button class="btn btn-ghost btn-sm" id="removeImageBtn">✕ Xóa</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <h3>Cấu hình Generate</h3>
+
+        <div class="form-group">
+          <label class="input-label">Aspect Ratio</label>
+          <select id="aspectRatio" class="input-select">
+            <option value="16:9">16:9 (Landscape)</option>
+            <option value="9:16">9:16 (Portrait)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="input-label">Delay giữa các video (ms)</label>
+          <input type="number" id="delayInput" class="input-field" value="3000" min="1000" max="30000" step="500">
+        </div>
+
+        <div class="form-group">
+          <label class="input-label">Max retries khi lỗi</label>
+          <input type="number" id="maxRetriesInput" class="input-field" value="3" min="0" max="10">
+        </div>
+
+        <div class="form-group">
+          <label class="input-label toggle-label">
+            <input type="checkbox" id="useLowerPriorityInput" checked>
+            <span>Dùng Fast [Lower Priority] (miễn phí)</span>
+          </label>
+        </div>
+
+        <div class="form-group">
+          <label class="input-label toggle-label">
+            <input type="checkbox" id="skipOnErrorInput" checked>
+            <span>Tự động skip khi lỗi</span>
+          </label>
+        </div>
+
+        <div class="form-group">
+          <label class="input-label toggle-label" title="Dùng ảnh screenshot khung hình cuối làm input cho video sau">
+            <input type="checkbox" id="extractLastFrameInput">
+            <span>Tự động nối video (Dùng frame cuối làm đầu)</span>
+          </label>
+        </div>
+
+        <button class="btn btn-primary" id="saveConfigBtn">💾 Lưu cấu hình</button>
+      </div>
+    </section>
+
+    <!-- Progress Tab -->
+    <section class="tab-content" id="tab-progress">
+      <!-- Idle state -->
+      <div id="progressIdle" class="section-card">
+        <div class="empty-state">
+          <span class="empty-icon">▶️</span>
+          <p>Sẵn sàng. Thêm prompts và nhấn Start để bắt đầu.</p>
+        </div>
+        <button class="btn btn-primary btn-lg" id="startBatchBtn">
+          🚀 Bắt đầu Batch
+        </button>
+      </div>
+
+      <!-- Running state -->
+      <div id="progressRunning" style="display:none">
+        <div class="section-card">
+          <div class="progress-header">
+            <h3>Đang tạo video...</h3>
+            <span class="progress-count" id="progressCount">0/0</span>
+          </div>
+          <div class="progress-bar-container">
+            <div class="progress-bar" id="progressBar" style="width:0%"></div>
+          </div>
+          <div class="progress-status" id="progressStatus">Đang khởi tạo...</div>
+
+          <div class="button-row">
+            <button class="btn btn-warning" id="pauseBtn">⏸️ Tạm dừng</button>
+            <button class="btn btn-danger" id="cancelBtn">⏹️ Hủy</button>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <h3>Chi tiết prompts</h3>
+          <div id="progressPromptList" class="prompt-list"></div>
+        </div>
+      </div>
+
+      <!-- Paused state -->
+      <div id="progressPaused" style="display:none">
+        <div class="section-card">
+          <div class="progress-header">
+            <h3>⏸️ Đã tạm dừng</h3>
+            <span class="progress-count" id="pausedCount">0/0</span>
+          </div>
+          <div class="progress-bar-container">
+            <div class="progress-bar paused" id="pausedBar" style="width:0%"></div>
+          </div>
+          <div class="button-row">
+            <button class="btn btn-primary" id="resumeBtn">▶️ Tiếp tục</button>
+            <button class="btn btn-danger" id="cancelPausedBtn">⏹️ Hủy</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Completed state -->
+      <div id="progressCompleted" style="display:none">
+        <div class="section-card completed-card">
+          <h3>✅ Batch hoàn thành!</h3>
+          <div class="summary-grid">
+            <div class="summary-item success">
+              <span class="summary-value" id="successCount">0</span>
+              <span class="summary-label">Thành công</span>
+            </div>
+            <div class="summary-item error">
+              <span class="summary-value" id="errorCount">0</span>
+              <span class="summary-label">Lỗi</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-value" id="totalTime">0s</span>
+              <span class="summary-label">Thời gian</span>
+            </div>
+          </div>
+          <button class="btn btn-primary" id="newBatchBtn">🔄 Batch mới</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- History Tab -->
+    <section class="tab-content" id="tab-history">
+      <div class="section-card">
+        <div class="section-header">
+          <h3>Lịch sử batch</h3>
+          <button class="btn btn-ghost btn-sm" id="clearHistoryBtn">Xóa tất cả</button>
+        </div>
+        <div class="storage-info" id="storageInfo">
+          <span>Storage: </span><span id="storageUsed">0</span> / <span id="storageTotal">10</span> MB
+        </div>
+        <div id="historyList" class="history-list">
+          <div class="empty-state" id="emptyHistory">
+            <span class="empty-icon">📋</span>
+            <p>Chưa có lịch sử batch nào.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

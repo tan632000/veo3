@@ -1,0 +1,39 @@
+{
+  "feature_name": "veo3-bulk-video",
+  "created_at": "2026-03-19T13:44:31+07:00",
+  "updated_at": "2026-03-19T14:02:04+07:00",
+  "language": "vi",
+  "phase": "tasks-generated",
+  "approvals": {
+    "requirements": {
+      "generated": true,
+      "approved": true
+    },
+    "design": {
+      "generated": true,
+      "approved": true
+    },
+    "tasks": {
+      "generated": true,
+      "approved": false
+    }
+  },
+  "scope_lock": {
+    "source": "Chrome extension dùng local để bulk tạo video bằng Veo3. Khi hoàn thành video đầu tiên, tự động lấy frame cuối cùng làm input cho video tiếp theo, tạo chuỗi video liên tục.",
+    "in_scope": [],
+    "out_of_scope": [],
+    "expansion_policy": "requires-user-approval"
+  },
+  "design_context": {
+    "discovery_mode": "full",
+    "discovery_reason": "New subsystem with external DOM integration (Google Flow) and Chrome Extension architecture",
+    "validation_recommended": true
+  },
+  "validation": {
+    "status": "completed",
+    "session_count": 1,
+    "questions_asked": 5,
+    "last_validated_at": "2026-03-19T13:59:41+07:00"
+  },
+  "ready_for_implementation": false
+}
