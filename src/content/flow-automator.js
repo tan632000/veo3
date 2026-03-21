@@ -276,8 +276,11 @@ if (!window.__VEO3_FLOW_AUTOMATOR) {
 
     /**
      * Wait for video generation to complete
+     * Uses src URL tracking: finds a video with a src NOT in the known set
+     * @param {Set<string>} knownVideoSrcs - src URLs of videos BEFORE generation started
+     * @param {number} timeoutMs
      */
-    function waitForCompletion(timeoutMs = 180000) {
+    function waitForCompletion(knownVideoSrcs, timeoutMs = 180000) {
       return new Promise((resolve) => {
         const timeout = setTimeout(() => {
           observer.disconnect();
@@ -295,12 +298,17 @@ if (!window.__VEO3_FLOW_AUTOMATOR) {
               return resolve({ success: false, data: null, error: `Google Flow error: ${errText}` });
             }
           }
-          // Check for completed video
-          const video = findElement('resultVideoElement');
-          if (video && (video.src || video.querySelector('source'))) {
-            observer.disconnect();
-            clearTimeout(timeout);
-            return resolve({ success: true, data: { videoFound: true }, error: null });
+          // Find a video with a NEW src (not in the known set)
+          const allVideos = findAllElements('resultVideoElement');
+          for (const video of allVideos) {
+            const src = video.src || (video.querySelector('source') && video.querySelector('source').src);
+            if (src && !knownVideoSrcs.has(src)) {
+              observer.disconnect();
+              clearTimeout(timeout);
+              console.log(`[FlowAutomator] ✅ New video detected by unique src: ${src.substring(0, 80)}...`);
+              console.log(`[FlowAutomator] Known srcs: ${knownVideoSrcs.size}, total videos on page: ${allVideos.length}`);
+              return resolve({ success: true, data: { videoFound: true, videoElement: video }, error: null });
+            }
           }
         };
 
@@ -327,6 +335,17 @@ if (!window.__VEO3_FLOW_AUTOMATOR) {
         extractLastFrame: shouldExtractFrame = false,
       } = options;
 
+      // Snapshot ALL existing video src URLs BEFORE generating
+      const knownVideoSrcs = new Set();
+      findAllElements('resultVideoElement').forEach(v => {
+        const src = v.src || (v.querySelector('source') && v.querySelector('source').src);
+        if (src) knownVideoSrcs.add(src);
+      });
+      console.log(`[FlowAutomator] Snapshot: ${knownVideoSrcs.size} known video src(s) before generation`);
+
+      // Track the latest video element found after generation
+      let latestVideoElement = null;
+
       const steps = [
         { name: 'selectVideoMode', fn: () => selectVideoMode() },
         { name: 'selectModel', fn: () => selectModel(useLowerPriority) },
@@ -334,12 +353,12 @@ if (!window.__VEO3_FLOW_AUTOMATOR) {
         { name: 'uploadImage', fn: () => uploadImage(firstFrameImage) },
         { name: 'fillPrompt', fn: () => fillPrompt(promptText) },
         { name: 'clickGenerate', fn: () => clickGenerate() },
-        { name: 'waitCompletion', fn: () => waitForCompletion() },
+        { name: 'waitCompletion', fn: () => waitForCompletion(knownVideoSrcs) },
       ];
 
-      // Conditionally add frame extraction
+      // Conditionally add frame extraction (will use latestVideoElement)
       if (shouldExtractFrame) {
-        steps.push({ name: 'extractFrame', fn: () => extractLastFrame('resultVideoElement') });
+        steps.push({ name: 'extractFrame', fn: () => extractLastFrame(latestVideoElement || 'resultVideoElement') });
       }
 
       for (const step of steps) {
@@ -348,6 +367,11 @@ if (!window.__VEO3_FLOW_AUTOMATOR) {
           const result = await step.fn();
           if (!result.success) {
             return { success: false, data: null, error: `Step "${step.name}" failed: ${result.error}` };
+          }
+          // Capture the latest video element from waitCompletion
+          if (step.name === 'waitCompletion' && result.data && result.data.videoElement) {
+            latestVideoElement = result.data.videoElement;
+            console.log(`[FlowAutomator] Captured new video element (src: ${latestVideoElement.src?.substring(0, 60)}...)`);
           }
           if (step.name === 'extractFrame') {
             return { success: true, data: { frameDataUrl: result.imageDataUrl }, error: null };

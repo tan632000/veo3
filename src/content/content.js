@@ -19,6 +19,12 @@ if (!window.__VEO3_CONTENT_LOADED) {
 
   console.log('[ContentScript] Veo3 Bulk Video — Content script loaded on', window.location.href);
 
+  /**
+   * Run generation counter — prevents stale parallel runs from sending results.
+   * Each new EXECUTE_COMMAND increments this. Old runs check before sending.
+   */
+  let currentRunId = 0;
+
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     handleMessage(message)
       .then(sendResponse)
@@ -52,7 +58,10 @@ if (!window.__VEO3_CONTENT_LOADED) {
 
       case 'EXECUTE_COMMAND': {
         const { promptText, hasFrameImage, options } = payload;
-        console.log(`[ContentScript] Executing prompt: "${promptText.substring(0, 50)}..."`);
+
+        // Increment run ID — any previous run will detect this and discard its result
+        const myRunId = ++currentRunId;
+        console.log(`[ContentScript] Executing prompt (runId=${myRunId}): "${promptText.substring(0, 50)}..."`);
 
         // Read frame image from storage if needed (too large for message)
         let firstFrameImage = null;
@@ -62,7 +71,7 @@ if (!window.__VEO3_CONTENT_LOADED) {
         }
 
         // Run automation async — DON'T await here (channel would timeout)
-        runAutomationAsync(promptText, firstFrameImage, options || {});
+        runAutomationAsync(myRunId, promptText, firstFrameImage, options || {});
 
         // Immediately return acknowledgment
         return { success: true, data: { acknowledged: true } };
@@ -88,12 +97,21 @@ if (!window.__VEO3_CONTENT_LOADED) {
   }
 
   /**
-   * Run automation asynchronously and send result back when done
+   * Run automation asynchronously and send result back when done.
+   * Checks runId before sending result — if a newer run has started,
+   * this run's result is stale and gets discarded.
    */
-  async function runAutomationAsync(promptText, firstFrameImage, options) {
+  async function runAutomationAsync(myRunId, promptText, firstFrameImage, options) {
     try {
       const result = await automator.executeFullPromptCycle(promptText, firstFrameImage, options);
-      console.log('[ContentScript] Automation result:', result.success ? 'SUCCESS' : result.error);
+
+      // Check if this run has been superseded by a newer one
+      if (myRunId !== currentRunId) {
+        console.log(`[ContentScript] ⏭️ Run ${myRunId} superseded by run ${currentRunId}, discarding result`);
+        return;
+      }
+
+      console.log(`[ContentScript] Automation result (runId=${myRunId}):`, result.success ? 'SUCCESS' : result.error);
 
       safeSendMessage({
         type: 'COMMAND_RESULT',
@@ -102,6 +120,12 @@ if (!window.__VEO3_CONTENT_LOADED) {
         source: 'content-script',
       });
     } catch (err) {
+      // Check if superseded before sending error
+      if (myRunId !== currentRunId) {
+        console.log(`[ContentScript] ⏭️ Run ${myRunId} superseded (error path), discarding`);
+        return;
+      }
+
       console.error('[ContentScript] Automation error:', err);
       safeSendMessage({
         type: 'COMMAND_RESULT',
